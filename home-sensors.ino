@@ -24,8 +24,13 @@ const char *remotePassword = configRemotePassword;
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
+// display pins
 const int sda = 4; // GPIO4 = D2
 const int scl = 5; // GIPO5 = D1
+
+// current sensor & pin
+EnergyMonitor em;
+const int sct = 12; // GPIO12 = D6
 
 void setup() {
     Serial.begin(115200); // open serial for debugging
@@ -60,6 +65,12 @@ void setup() {
     while(WiFi.status() != WL_CONNECTED) {
         delay(500);
     }
+
+    // current sensor
+    pinMode(A0, INPUT);
+    Serial.println("current sensor parameters:");
+    Serial.printf("sct: %d\n", sct);
+    em.current(A0, 59); // use same value as the amperage (less one) of the SCT013, in my case: 60A=59
 }
 
 void setupDisplay(int sda, int scl) {
@@ -89,15 +100,66 @@ void wifiMessage(char *message) {
     delay(2000);
 }
 
-void loop() {
-    // Serial.print(millis());
-    // Serial.println(" looping");
+void monitorEnergy() {
+    // female headphone jack
+    // pins:
+    //   1 - gnd
+    //   2 - mic -- not used
+    //   3 - left
+    //   4 - right
+
+    // male headphone jack from SCT013
+    // ---/--/--
+    // out/vac/out -- SCT013
+    // gnd/rht/lft -- headphone jack
+    //   out - output
+    //   vac - vacancy -- not used
+    //   gnd - ground
+    //   rht - right
+    //   lft - left
+    //
+    // conclusion: use ground and left pins
 
     display.clearDisplay();
+
+    float pinCurrent = analogRead(1);
+
+    Serial.print("Pin Current:");
+    Serial.println(pinCurrent);
+
+    float irms = em.calcIrms(1500);
+    // ((2.2amps - 516) * 0.7)/11.9
+    float amps = ((irms - 516)*0.707)/11.8337;
+    em.serialprint();
+    
+    Serial.print("Current: ");
+    Serial.print(irms);
+    Serial.println("A");
+    Serial.print("Adj Curr: ");
+    Serial.print(amps);
+    Serial.println("A");
     display.setTextSize(4);
     display.setTextColor(WHITE);
     display.setCursor(3, 0);
-    display.print("00:00");
+    display.print(amps);
+    display.print("A");
     display.display();
-    delay(1000);
+    delay(250);
+}
+
+void loop() {
+    monitorEnergy();
+
+    // Serial.print(millis());
+    // Serial.println(" looping");
+
+    // display.clearDisplay();
+    // display.setTextSize(4);
+    // display.setTextColor(WHITE);
+    // display.setCursor(3, 0);
+    // display.print("00:00");
+    // display.display();
+
+
+    // delay(1000);
 }
